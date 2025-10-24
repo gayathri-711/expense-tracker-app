@@ -1,0 +1,2 @@
+rent:per month:6000.0
+food:per day:500.0
