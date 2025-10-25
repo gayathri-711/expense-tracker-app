@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Expense Tracker (Frontend)</title>
+<style>
+  :root{
+    --green:#2e8b57;
+    --blue:#1976d2;
+    --red:#d32f2f;
+    --bg:#f6fbff;
+    --card:#ffffff;
+    --muted:#666;
+    --accent:#0b79d0;
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  }
+  body{ margin:0; background:var(--bg); color:#222; display:flex; min-height:100vh; align-items:center; justify-content:center; }
+  .container{ width:980px; max-width:95%; background:linear-gradient(180deg,#fff,#f8fbff); border-radius:12px; box-shadow:0 8px 30px rgba(20,40,80,0.08); padding:24px; }
+  h1,h2{ margin:0 0 12px 0; }
+  .center{ text-align:center; }
+  .btn{
+    display:inline-block; border:none; padding:10px 14px; border-radius:8px; cursor:pointer; font-weight:600;
+    box-shadow:0 2px 6px rgba(10,10,30,0.06);
+  }
+  .btn-green{ background:var(--green); color:white; }
+  .btn-blue{ background:var(--blue); color:white; }
+  .btn-red{ background:var(--red); color:white; }
+  .muted{ color:var(--muted); }
+  .col{ display:flex; gap:12px; flex-wrap:wrap; }
+  .card{ background:var(--card); border-radius:10px; padding:18px; box-shadow:0 4px 18px rgba(20,40,80,0.04); }
+  input[type="text"], input[type="password"], input[type="number"]{
+    padding:10px 12px; border-radius:8px; border:1px solid #e4eef8; outline:none; min-width:200px;
+  }
+  input[type="number"]{ width:140px; }
+  table{ width:100%; border-collapse:collapse; margin-top:12px; }
+  th,td{ padding:8px 10px; text-align:left; border-bottom:1px solid #f0f4f8; }
+  th{ font-weight:700; color:#333; }
+  .controls{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .right{ margin-left:auto; display:flex; gap:10px; align-items:center; }
+  .small{ font-size:13px; padding:6px 8px; border-radius:7px; }
+  .notice{ margin-top:8px; color:#b00020; font-size:13px; }
+  .welcome-actions{ display:flex; gap:10px; justify-content:center; margin-top:18px; }
+  .username-label{ font-weight:600; margin-bottom:6px; }
+  @media (max-width:700px){
+    .col{ flex-direction:column; }
+    input[type="text"], input[type="password"]{ width:100%; }
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <!-- Views -->
+    <div id="view-welcome" class="card" style="display:none;">
+      <h1 class="center">Welcome to Expense Tracker</h1>
+      <p class="center muted">Sign in to manage your expenses or create a new account.</p>
+      <div class="welcome-actions">
+        <button id="btn-signin" class="btn btn-green">Sign In</button>
+        <button id="btn-signup" class="btn btn-blue">Sign Up</button>
+      </div>
+    </div>
+
+    <div id="view-signup" class="card" style="display:none;">
+      <h2>Sign Up</h2>
+      <div class="col">
+        <input id="signup-username" type="text" placeholder="Choose username" />
+        <input id="signup-password" type="password" placeholder="Choose password" />
+        <button id="signup-submit" class="btn btn-blue">Register</button>
+        <button id="signup-back" class="btn small">Back</button>
+      </div>
+      <div id="signup-msg" class="notice" style="display:none;"></div>
+    </div>
+
+    <div id="view-signin" class="card" style="display:none;">
+      <h2>Sign In</h2>
+      <div class="col">
+        <input id="signin-username" type="text" placeholder="Username" />
+        <input id="signin-password" type="password" placeholder="Password" />
+        <button id="signin-submit" class="btn btn-green">Login</button>
+        <button id="signin-back" class="btn small">Back</button>
+      </div>
+      <div id="signin-msg" class="notice" style="display:none;"></div>
+    </div>
+
+    <div id="view-tracker" class="card" style="display:none;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="flex:1">
+          <div class="username-label">Welcome, <span id="lbl-user"></span></div>
+          <div class="muted">Add an expense — it will be saved for your account.</div>
+        </div>
+        <div class="right">
+          <div style="font-weight:700;">Total: ₹<span id="lbl-total">0.00</span></div>
+          <button id="btn-clear" class="btn btn-red small">Clear All</button>
+          <button id="btn-logout" class="btn btn-green small">Logout</button>
+        </div>
+      </div>
+
+      <hr style="margin:12px 0; border:none; border-top:1px solid #eef5fb;" />
+
+      <div class="col" style="align-items:center;">
+        <input id="exp-category" type="text" placeholder="Category (Food, Travel...)" />
+        <input id="exp-desc" type="text" placeholder="Description" />
+        <input id="exp-amt" type="number" placeholder="Amount" step="0.01" />
+        <button id="btn-add" class="btn btn-green">Add Expense</button>
+      </div>
+
+      <table id="tbl-expenses" aria-label="Expenses table">
+        <thead>
+          <tr><th>Category</th><th>Description</th><th>Amount (₹)</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div id="tracker-msg" class="notice" style="display:none;"></div>
+    </div>
+  </div>
+
+<script>
+/*
+Frontend-only single-file expense tracker using localStorage.
+Data shape in localStorage:
+  key "users" => JSON object mapping username -> password
+  key "expenses_{username}" => JSON array of {category, description, amount}
+*/
+
+const VIEWS = {
+  WELCOME: 'view-welcome',
+  SIGNUP: 'view-signup',
+  SIGNIN: 'view-signin',
+  TRACKER: 'view-tracker'
+};
+
+let currentUser = null;
+
+// helpers
+const $ = id => document.getElementById(id);
+const showView = (name) => {
+  Object.values(VIEWS).forEach(v => {
+    document.getElementById(v).style.display = (v === name) ? 'block' : 'none';
+  });
+};
+const usersKey = 'users';
+const users = () => JSON.parse(localStorage.getItem(usersKey) || '{}');
+const saveUsers = (u) => localStorage.setItem(usersKey, JSON.stringify(u));
+const expKey = (username) => `expenses_${username}`;
+const loadExpensesFor = (username) => JSON.parse(localStorage.getItem(expKey(username)) || '[]');
+const saveExpensesFor = (username, arr) => localStorage.setItem(expKey(username), JSON.stringify(arr));
+
+// UI initial wiring
+function init() {
+  // welcome
+  $('btn-signin').addEventListener('click', () => showView(VIEWS.SIGNIN));
+  $('btn-signup').addEventListener('click', () => showView(VIEWS.SIGNUP));
+
+  // signup
+  $('signup-back').addEventListener('click', () => {
+    $('signup-msg').style.display='none';
+    showView(VIEWS.WELCOME);
+  });
+  $('signup-submit').addEventListener('click', () => {
+    const uname = $('signup-username').value.trim();
+    const pwd = $('signup-password').value;
+    const msg = $('signup-msg');
+    if (!uname || !pwd) { msg.textContent = 'Username and password are required.'; msg.style.display='block'; return; }
+    const u = users();
+    if (u[uname]) { msg.textContent = 'User already exists. Choose another username.'; msg.style.display='block'; return; }
+    u[uname] = pwd;
+    saveUsers(u);
+    // create empty expense list
+    saveExpensesFor(uname, []);
+    msg.style.color = 'green';
+    msg.textContent = 'Registration successful — you can now Sign In.';
+    msg.style.display='block';
+    // clear inputs
+    $('signup-username').value=''; $('signup-password').value='';
+  });
+
+  // signin
+  $('signin-back').addEventListener('click', () => {
+    $('signin-msg').style.display='none';
+    showView(VIEWS.WELCOME);
+  });
+  $('signin-submit').addEventListener('click', () => {
+    const uname = $('signin-username').value.trim();
+    const pwd = $('signin-password').value;
+    const msg = $('signin-msg');
+    if (!uname || !pwd) { msg.textContent='Enter username & password.'; msg.style.display='block'; return; }
+    const u = users();
+    if (u[uname] && u[uname] === pwd) {
+      // success
+      $('signin-username').value=''; $('signin-password').value='';
+      msg.style.display='none';
+      loginAs(uname);
+    } else {
+      msg.textContent='Invalid username or password.'; msg.style.display='block';
+    }
+  });
+
+  // tracker actions
+  $('btn-logout').addEventListener('click', () => {
+    logout();
+  });
+  $('btn-clear').addEventListener('click', () => {
+    if (!currentUser) return;
+    if (!confirm('Clear all expenses for ' + currentUser + '? This cannot be undone.')) return;
+    saveExpensesFor(currentUser, []);
+    renderExpenses([]);
+  });
+  $('btn-add').addEventListener('click', () => {
+    const cat = $('exp-category').value.trim();
+    const desc = $('exp-desc').value.trim();
+    const amtRaw = $('exp-amt').value;
+    const msg = $('tracker-msg');
+    msg.style.display='none';
+    if (!cat || !desc || !amtRaw) { msg.textContent='All fields required.'; msg.style.display='block'; return; }
+    const amt = parseFloat(amtRaw);
+    if (isNaN(amt) || amt <= 0) { msg.textContent='Enter a valid positive amount.'; msg.style.display='block'; return; }
+    const list = loadExpensesFor(currentUser);
+    const item = { category: cat, description: desc, amount: +amt.toFixed(2) };
+    list.push(item);
+    saveExpensesFor(currentUser, list);
+    renderExpenses(list);
+    $('exp-category').value=''; $('exp-desc').value=''; $('exp-amt').value='';
+  });
+
+  // default view
+  showView(VIEWS.WELCOME);
+}
+
+// login and logout
+function loginAs(username) {
+  currentUser = username;
+  $('lbl-user').textContent = username;
+  const list = loadExpensesFor(username);
+  renderExpenses(list);
+  showView(VIEWS.TRACKER);
+}
+
+function logout() {
+  currentUser = null;
+  // clear tracker inputs & messages
+  $('tracker-msg').style.display='none';
+  $('exp-category').value=''; $('exp-desc').value=''; $('exp-amt').value='';
+  showView(VIEWS.WELCOME);
+}
+
+// render table + total
+function renderExpenses(list) {
+  if (!Array.isArray(list)) list = [];
+  const tbody = document.querySelector('#tbl-expenses tbody');
+  tbody.innerHTML = '';
+  let total = 0;
+  list.forEach(it => {
+    const tr = document.createElement('tr');
+    const td1 = document.createElement('td'); td1.textContent = it.category;
+    const td2 = document.createElement('td'); td2.textContent = it.description;
+    const td3 = document.createElement('td'); td3.textContent = Number(it.amount).toFixed(2);
+    tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+    tbody.appendChild(tr);
+    total += Number(it.amount) || 0;
+  });
+  $('lbl-total').textContent = total.toFixed(2);
+}
+
+// initialize on load
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
